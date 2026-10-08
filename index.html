@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lucky Win Arena - Aviator Edition</title>
+    <title>Lucky Win Arena - Continuous Aviator</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Firebase SDKs -->
     <script type="module">
@@ -27,8 +27,9 @@
         let gameInterval = null;
         let currentMultiplier = 1.00;
         let activeBet = 0;
+        let hasBetPlacedForNextRound = false;
         let roundTimeLeft = 25;
-        let isPlaneFlying = false;
+        let gameState = "waiting"; // "waiting", "flying", "crashed"
 
         window.addEventListener("DOMContentLoaded", () => {
             if (currentUser) {
@@ -37,7 +38,7 @@
                 document.getElementById("display-username").innerText = currentUser;
                 listenToBalance(currentUser);
                 startBotSimulation();
-                startAviatorRoundTimer();
+                startContinuousGameLoop();
             }
         });
 
@@ -62,7 +63,7 @@
                         document.getElementById("display-username").innerText = currentUser;
                         listenToBalance(currentUser);
                         startBotSimulation();
-                        startAviatorRoundTimer();
+                        startContinuousGameLoop();
                     } else {
                         alert("❌ Incorrect password!");
                     }
@@ -75,7 +76,7 @@
                     document.getElementById("display-username").innerText = currentUser;
                     listenToBalance(currentUser);
                     startBotSimulation();
-                    startAviatorRoundTimer();
+                    startContinuousGameLoop();
                 }
             });
         };
@@ -116,87 +117,87 @@
             }, 2500);
         }
 
-        function startAviatorRoundTimer() {
-            const statusEl = document.getElementById("game-status");
-            setInterval(() => {
-                if (!isPlaneFlying) {
+        // Continuous Loop handling 25s waiting and flight phases automatically
+        function startContinuousGameLoop() {
+            setInterval(async () => {
+                const statusEl = document.getElementById("game-status");
+                const multiplierDisplay = document.getElementById("multiplier-display");
+                const cashoutBtn = document.getElementById("cashout-btn");
+                const placeBetBtn = document.getElementById("place-bet-btn");
+                const jetEl = document.getElementById("flying-jet-icon");
+
+                if (gameState === "waiting") {
                     roundTimeLeft--;
-                    if (roundTimeLeft <= 0) {
-                        roundTimeLeft = 25;
-                        triggerAutoFlight();
-                    } else {
-                        statusEl.innerText = `⏳ Next flight takes off in ${roundTimeLeft}s...`;
+                    if (roundTimeLeft > 0) {
+                        statusEl.innerText = `⏳ Next flight takes off in ${roundTimeLeft}s... Place your bets!`;
                         statusEl.className = "text-center font-bold text-amber-400";
+                    } else {
+                        // Switch to Flying state
+                        gameState = "flying";
+                        roundTimeLeft = 25;
+                        currentMultiplier = 1.00;
+                        multiplierDisplay.innerText = "1.00x";
+                        statusEl.innerText = "✈️ Plane is flying high!";
+                        statusEl.className = "text-center font-bold text-yellow-400 animate-pulse";
+                        
+                        jetEl.classList.remove("translate-x-0", "translate-y-0");
+                        jetEl.classList.add("translate-x-24", "-translate-y-12", "scale-125");
+
+                        if (hasBetPlacedForNextRound) {
+                            activeBet = window.tempBetAmount;
+                            cashoutBtn.classList.remove("hidden");
+                            placeBetBtn.classList.add("hidden");
+                        }
+
+                        // Determine crash point (40% win / 60% loss house edge)
+                        let crashPoint;
+                        const randRoll = Math.random();
+                        if (randRoll < 0.60) {
+                            crashPoint = parseFloat((Math.random() * (1.30 - 1.01) + 1.01).toFixed(2));
+                        } else {
+                            crashPoint = parseFloat((Math.random() * (4.50 - 1.35) + 1.35).toFixed(2));
+                        }
+
+                        // Run flight increment
+                        gameInterval = setInterval(async () => {
+                            currentMultiplier += 0.04;
+                            multiplierDisplay.innerText = currentMultiplier.toFixed(2) + "x";
+
+                            if (currentMultiplier >= crashPoint) {
+                                clearInterval(gameInterval);
+                                gameState = "crashed";
+                                cashoutBtn.classList.add("hidden");
+                                placeBetBtn.classList.remove("hidden");
+
+                                jetEl.classList.remove("translate-x-24", "-translate-y-12", "scale-125");
+                                jetEl.classList.add("translate-x-0", "translate-y-0");
+
+                                if (hasBetPlacedForNextRound) {
+                                    statusEl.innerText = `💥 FLEW AWAY! You lost PKR ${activeBet}`;
+                                    statusEl.className = "text-center font-bold text-red-500";
+                                    activeBet = 0;
+                                    hasBetPlacedForNextRound = false;
+                                } else {
+                                    statusEl.innerText = `💥 Flew away at ${crashPoint}x!`;
+                                    statusEl.className = "text-center font-bold text-slate-400";
+                                }
+
+                                setTimeout(() => {
+                                    gameState = "waiting";
+                                }, 3000);
+                            }
+                        }, 120);
                     }
                 }
             }, 1000);
         }
 
-        function triggerAutoFlight() {
-            if (isPlaneFlying) return;
-            isPlaneFlying = true;
-            const statusEl = document.getElementById("game-status");
-            const multiplierDisplay = document.getElementById("multiplier-display");
-            const cashoutBtn = document.getElementById("cashout-btn");
-            const jetEl = document.getElementById("flying-jet-icon");
-
-            currentMultiplier = 1.00;
-            multiplierDisplay.innerText = "1.00x";
-            statusEl.innerText = "✈️ Jet is flying high!";
-            statusEl.className = "text-center font-bold text-yellow-400 animate-pulse";
-            
-            jetEl.classList.remove("translate-x-0", "translate-y-0");
-            jetEl.classList.add("translate-x-24", "-translate-y-12", "scale-125");
-
-            if(activeBet > 0) {
-                cashoutBtn.classList.remove("hidden");
-            }
-
-            let crashPoint;
-            const randRoll = Math.random();
-            if (randRoll < 0.60) {
-                crashPoint = parseFloat((Math.random() * (1.30 - 1.01) + 1.01).toFixed(2));
-            } else {
-                crashPoint = parseFloat((Math.random() * (4.50 - 1.35) + 1.35).toFixed(2));
-            }
-
-            gameInterval = setInterval(() => {
-                currentMultiplier += 0.04;
-                multiplierDisplay.innerText = currentMultiplier.toFixed(2) + "x";
-
-                if (currentMultiplier >= crashPoint) {
-                    clearInterval(gameInterval);
-                    endFlight(false, crashPoint);
-                }
-            }, 120);
-        }
-
-        async function endFlight(isCashout, finalMult) {
-            if (!isPlaneFlying) return;
-            isPlaneFlying = false;
-            clearInterval(gameInterval);
-
-            const statusEl = document.getElementById("game-status");
-            const cashoutBtn = document.getElementById("cashout-btn");
-            const jetEl = document.getElementById("flying-jet-icon");
-            cashoutBtn.classList.add("hidden");
-
-            jetEl.classList.remove("translate-x-24", "-translate-y-12", "scale-125");
-            jetEl.classList.add("translate-x-0", "translate-y-0");
-
-            if (!isCashout && activeBet > 0) {
-                statusEl.innerText = `💥 FLEW AWAY! You lost PKR ${activeBet}`;
-                statusEl.className = "text-center font-bold text-red-500";
-                activeBet = 0;
-            } else if (!isCashout) {
-                statusEl.innerText = `💥 Flew away at ${finalMult}x! Round ended.`;
-                statusEl.className = "text-center font-bold text-slate-400";
-            }
-
-            roundTimeLeft = 25;
-        }
-
         window.placeAviatorBet = async function() {
+            if (gameState !== "waiting") {
+                alert("Please wait for the next round betting phase!");
+                return;
+            }
+
             const betAmount = parseFloat(document.getElementById("bet-amount").value);
             const statusEl = document.getElementById("game-status");
 
@@ -209,24 +210,27 @@
                 return;
             }
 
-            activeBet = betAmount;
-            let newBalance = window.currentBalance - activeBet;
+            window.tempBetAmount = betAmount;
+            let newBalance = window.currentBalance - betAmount;
             const userRef = ref(db, 'users/' + currentUser);
             await update(userRef, { balance: newBalance });
 
-            statusEl.innerText = "✅ Bet placed successfully for next flight!";
+            hasBetPlacedForNextRound = true;
+            statusEl.innerText = "✅ Bet locked in for upcoming flight!";
             statusEl.className = "text-center font-bold text-emerald-400";
         };
 
         window.cashOut = async function() {
-            if (!isPlaneFlying || activeBet === 0) return;
+            if (gameState !== "flying" || !hasBetPlacedForNextRound) return;
             
             const cashoutMult = currentMultiplier;
             const currentBetVal = activeBet;
+            hasBetPlacedForNextRound = false;
             activeBet = 0;
             
             const statusEl = document.getElementById("game-status");
             document.getElementById("cashout-btn").classList.add("hidden");
+            document.getElementById("place-bet-btn").classList.remove("hidden");
 
             const correctedWin = currentBetVal * cashoutMult;
             let updatedBal = window.currentBalance + correctedWin;
@@ -284,12 +288,12 @@
         <!-- Aviator Jet Arena -->
         <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-lg flex flex-col items-center space-y-4">
             <h3 class="font-bold text-lg text-red-500 flex items-center gap-2">
-                <span id="flying-jet-icon" class="transition-all duration-700 inline-block">✈️</span> Aviator Jet Arena
+                <span id="flying-jet-icon" class="transition-all duration-700 inline-block">✈️</span> Continuous Aviator Arena
             </h3>
             
             <div class="w-full h-40 bg-slate-950 border border-slate-800 rounded-xl flex flex-col items-center justify-center shadow-inner relative overflow-hidden">
                 <span id="multiplier-display" class="text-6xl font-black text-amber-400 tracking-wider z-10">1.00x</span>
-                <span class="text-xs text-slate-500 mt-2 z-10">Automatic flight every 25 seconds</span>
+                <span class="text-xs text-slate-500 mt-2 z-10">Live running round system</span>
             </div>
 
             <div class="w-full">
@@ -298,11 +302,11 @@
             </div>
 
             <div class="grid grid-cols-2 gap-2 w-full">
-                <button onclick="placeAviatorBet()" class="bg-red-600 hover:bg-red-500 text-white font-bold py-3 rounded-xl shadow-lg transition text-sm">Place Bet</button>
+                <button id="place-bet-btn" onclick="placeAviatorBet()" class="bg-red-600 hover:bg-red-500 text-white font-bold py-3 rounded-xl shadow-lg transition text-sm">Place Bet</button>
                 <button id="cashout-btn" onclick="cashOut()" class="hidden bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold py-3 rounded-xl shadow-lg transition text-sm animate-bounce">CASHOUT</button>
             </div>
 
-            <div id="game-status" class="text-center font-bold text-sm h-6 text-amber-400">Waiting for next round...</div>
+            <div id="game-status" class="text-center font-bold text-sm h-6 text-amber-400">Syncing live rounds...</div>
 
             <!-- Bot Live Feed Ticker -->
             <div class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 h-20 overflow-hidden text-xs text-slate-400">
