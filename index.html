@@ -7,140 +7,195 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Firebase SDKs -->
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getDatabase, ref, set, get, update, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getDatabase, ref, set, get, update, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
         const firebaseConfig = {
-            apiKey: "AIzaSyC2uxfVYbNrksWicBromCVM5E...",
+            apiKey: "AIzaSyC2uxfVYbNrksWicBrB-g-Ww81u6A70e28",
             authDomain: "greedygamepkk.firebaseapp.com",
             databaseURL: "https://greedygamepkk-default-rtdb.firebaseio.com",
             projectId: "greedygamepkk",
             storageBucket: "greedygamepkk.appspot.com",
             messagingSenderId: "658430310829",
-            appId: "1:658430310829:web:69b8272e1c5a..."
+            appId: "1:658430310829:web:69b827e7f9a1f2e9619a89"
         };
 
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
 
-        let currentUser = localStorage.getItem("lucky_user") || "";
+        let currentUser = localStorage.getItem("lucky_win_user") || "";
+
+        window.addEventListener("DOMContentLoaded", () => {
+            if (currentUser) {
+                document.getElementById("auth-screen").classList.add("hidden");
+                document.getElementById("game-screen").classList.remove("hidden");
+                document.getElementById("display-username").innerText = currentUser;
+                listenToBalance(currentUser);
+            }
+        });
 
         window.loginUser = function() {
-            const username = document.getElementById("usernameInput").value.trim();
-            if(!username) {
+            const usernameInput = document.getElementById("username-input").value.trim();
+            if (!usernameInput) {
                 alert("Please enter a username!");
                 return;
             }
-            currentUser = username;
-            localStorage.setItem("lucky_user", username);
-            
-            document.getElementById("auth-screen").classList.add("hidden");
-            document.getElementById("game-screen").classList.remove("hidden");
-            document.getElementById("display-user").innerText = currentUser;
+            currentUser = usernameInput;
+            localStorage.setItem("lucky_win_user", currentUser);
 
             const userRef = ref(db, 'users/' + currentUser);
             get(userRef).then((snapshot) => {
                 if (!snapshot.exists()) {
-                    set(userRef, { balance: 100 }); // Bonus starting balance
+                    set(userRef, { balance: 100.00 }); // Bonus starting balance
                 }
             });
 
-            onValue(userRef, (snapshot) => {
-                const data = snapshot.val();
-                if(data) {
-                    document.getElementById("user-balance").innerText = data.balance.toFixed(2);
-                }
-            });
+            document.getElementById("auth-screen").classList.add("hidden");
+            document.getElementById("game-screen").classList.remove("hidden");
+            document.getElementById("display-username").innerText = currentUser;
+            listenToBalance(currentUser);
         };
 
-        if(currentUser) {
-            document.getElementById("usernameInput").value = currentUser;
-            window.loginUser();
+        window.logoutUser = function() {
+            localStorage.removeItem("lucky_win_user");
+            location.reload();
+        };
+
+        function listenToBalance(username) {
+            const balanceRef = ref(db, 'users/' + username + '/balance');
+            onValue(balanceRef, (snapshot) => {
+                const balance = snapshot.val() !== null ? snapshot.val() : 0;
+                document.getElementById("display-balance").innerText = "PKR " + parseFloat(balance).toFixed(2);
+                window.currentBalance = parseFloat(balance);
+            });
         }
 
-        window.placeBet = function(multiplier) {
-            const betAmount = parseFloat(document.getElementById("betAmount").value);
-            const userRef = ref(db, 'users/' + currentUser);
+        window.playGame = async function(color, multiplier) {
+            const betAmount = parseFloat(document.getElementById("bet-amount").value);
+            const statusEl = document.getElementById("game-status");
+            const wheelEl = document.getElementById("color-wheel");
 
-            get(userRef).then((snapshot) => {
-                if(snapshot.exists()) {
-                    let currentBalance = snapshot.val().balance;
-                    if(currentBalance < betAmount || betAmount <= 0) {
-                        alert("Insufficient Balance!");
-                        return;
-                    }
-
-                    // Game logic: 50% win chance
-                    const win = Math.random() < 0.45;
-                    let newBalance = currentBalance - betAmount;
-                    let resultText = "";
-
-                    if(win) {
-                        const winAmount = betAmount * multiplier;
-                        newBalance += winAmount;
-                        resultText = `🎉 You Won PKR ${winAmount.toFixed(2)}!`;
-                    } else {
-                        resultText = `❌ You Lost PKR ${betAmount.toFixed(2)}`;
-                    }
-
-                    update(userRef, { balance: newBalance });
-                    document.getElementById("game-result").innerText = resultText;
-                }
-            });
-        };
-
-        window.openDeposit = function() {
-            const amount = document.getElementById("depositAmount").value;
-            const tid = document.getElementById("tidInput").value;
-            if(!amount || !tid) {
-                alert("Please enter amount and Transaction ID (TID)");
+            if (isNaN(betAmount) || betAmount <= 0) {
+                statusEl.innerText = "⚠️ Please enter a valid bet amount!";
+                statusEl.className = "text-center font-bold text-yellow-400";
                 return;
             }
-            const msg = `Hello Admin, I want to deposit PKR ${amount}. My TID is: ${tid} & Username is: ${currentUser}. Easypaisa Number: 0325-6590936`;
-            window.open(`https://wa.me/923256590936?text=${encodeURIComponent(msg)}`, '_blank');
+
+            if (betAmount > window.currentBalance) {
+                statusEl.innerText = "❌ Insufficient balance! Please deposit.";
+                statusEl.className = "text-center font-bold text-red-400";
+                return;
+            }
+
+            // Disable buttons during spin
+            statusEl.innerText = "spinning the wheel...";
+            statusEl.className = "text-center font-bold text-yellow-300 animate-pulse";
+            wheelEl.classList.add("animate-spin");
+
+            setTimeout(async () => {
+                wheelEl.classList.remove("animate-spin");
+                const colors = ['red', 'green', 'gold'];
+                // Random outcome weighted or simple random
+                const winningColor = colors[Math.floor(Math.random() * colors.length)];
+                
+                let newBalance = window.currentBalance;
+                if (color === winningColor) {
+                    const winAmt = betAmount * multiplier;
+                    newBalance += (winAmt - betAmount);
+                    statusEl.innerText = `🎉 You Won PKR ${winAmt.toFixed(2)}! (Hit: ${winningColor.toUpperCase()})`;
+                    statusEl.className = "text-center font-bold text-green-400";
+                } else {
+                    newBalance -= betAmount;
+                    statusEl.innerText = `❌ You Lost PKR ${betAmount}. (Winner was ${winningColor.toUpperCase()})`;
+                    statusEl.className = "text-center font-bold text-red-400";
+                }
+
+                const userRef = ref(db, 'users/' + currentUser);
+                await update(userRef, { balance: newBalance });
+            }, 1500);
+        };
+
+        window.sendWhatsAppDeposit = function() {
+            const amount = document.getElementById("deposit-amount").value;
+            const tid = document.getElementById("deposit-tid").value.trim();
+
+            if (!amount || !tid) {
+                alert("Please enter both Amount and Transaction ID (TID)!");
+                return;
+            }
+
+            const message = `Hello Admin, I want to deposit funds.%0A*User:* ${currentUser}%0A*Amount:* PKR ${amount}%0A*TID:* ${tid}`;
+            const whatsappUrl = `https://wa.me/923256590936?text=${message}`;
+            window.open(whatsappUrl, '_blank');
         };
     </script>
 </head>
-<body class="bg-slate-900 text-white font-sans min-p-4 flex flex-col items-center justify-center min-h-screen">
+<body class="bg-slate-950 text-white min-h-screen flex flex-col items-center justify-start p-4">
 
     <!-- Auth Screen -->
-    <div id="auth-screen" class="bg-slate-800 p-6 rounded-xl shadow-xl w-80 text-center">
-        <h1 class="text-2xl font-bold text-emerald-400 mb-4">Lucky Win Arena</h1>
-        <input type="text" id="usernameInput" placeholder="Enter your username" class="w-full p-2 rounded bg-slate-700 text-white mb-4 border border-slate-600 focus:outline-none">
-        <button onclick="loginUser()" class="w-full bg-emerald-500 hover:bg-emerald-600 font-bold p-2 rounded text-slate-900">Start Playing</button>
+    <div id="auth-screen" class="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl mt-10">
+        <h1 class="text-3xl font-extrabold text-center text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400 mb-6">Lucky Win Arena</h1>
+        <p class="text-slate-400 text-center mb-6 text-sm">Enter your unique player username to start playing & betting live!</p>
+        <input type="text" id="username-input" placeholder="Enter Username (e.g. Raheem)" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white mb-4 focus:outline-none focus:border-cyan-400">
+        <button onclick="loginUser()" class="w-full bg-gradient-to-r from-emerald-500 to-cyan-500 text-slate-950 font-bold py-3 rounded-xl shadow-lg hover:opacity-90 transition">Enter Platform</button>
     </div>
 
     <!-- Game Screen -->
-    <div id="game-screen" class="hidden w-full max-w-md bg-slate-800 p-6 rounded-xl shadow-xl">
-        <div class="flex justify-between items-center mb-6 border-b border-slate-700 pb-3">
+    <div id="game-screen" class="hidden w-full max-w-md space-y-6">
+        <!-- Header Info -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex justify-between items-center shadow-lg">
             <div>
                 <p class="text-xs text-slate-400">Player</p>
-                <h2 id="display-user" class="font-bold text-lg text-emerald-400"></h2>
+                <h2 id="display-username" class="font-bold text-cyan-400 text-lg"></h2>
             </div>
             <div class="text-right">
                 <p class="text-xs text-slate-400">Balance</p>
-                <h2 class="font-bold text-xl text-yellow-400">PKR <span id="user-balance">0.00</span></h2>
+                <h2 id="display-balance" class="font-bold text-emerald-400 text-xl">PKR 0.00</h2>
             </div>
+            <button onclick="logoutUser()" class="text-xs bg-red-500/20 text-red-400 border border-red-500/30 px-3 py-1.5 rounded-lg hover:bg-red-500/30 transition">Logout</button>
         </div>
 
-        <!-- Betting Controls -->
-        <div class="mb-6">
-            <label class="block text-sm text-slate-300 mb-1">Bet Amount (PKR)</label>
-            <input type="number" id="betAmount" value="50" class="w-full p-2 rounded bg-slate-700 text-white border border-slate-600 mb-4">
+        <!-- Interactive Color Prediction Arena -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-lg flex flex-col items-center space-y-4">
+            <h3 class="font-bold text-lg text-slate-200">Color Spin Arena</h3>
             
-            <div class="grid grid-cols-2 gap-3">
-                <button onclick="placeBet(1.5)" class="bg-blue-600 hover:bg-blue-700 p-3 rounded font-bold text-center">Low Risk (1.5x)</button>
-                <button onclick="placeBet(2.0)" class="bg-purple-600 hover:bg-purple-700 p-3 rounded font-bold text-center">High Risk (2.0x)</button>
+            <!-- Animated Spinner Circle -->
+            <div id="color-wheel" class="w-24 h-24 rounded-full border-4 border-dashed border-cyan-400 flex items-center justify-center bg-gradient-to-tr from-red-600 via-emerald-600 to-amber-500 shadow-xl transition-all duration-500">
+                <span class="text-xs font-black tracking-widest bg-slate-950/80 px-2 py-1 rounded">SPIN</span>
             </div>
-            <p id="game-result" class="text-center mt-4 font-semibold text-lg text-yellow-300"></p>
+
+            <div class="w-full">
+                <label class="text-xs text-slate-400 mb-1 block">Bet Amount (PKR)</label>
+                <input type="number" id="bet-amount" value="100" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white font-bold focus:outline-none focus:border-cyan-400">
+            </div>
+
+            <!-- Betting Options -->
+            <div class="grid grid-cols-3 gap-2 w-full pt-2">
+                <button onclick="playGame('red', 2.0)" class="bg-red-600 hover:bg-red-500 text-white font-bold py-3 rounded-xl shadow-md transition flex flex-col items-center">
+                    <span>🔴 RED</span>
+                    <span class="text-xs opacity-80">2.0x</span>
+                </button>
+                <button onclick="playGame('green', 2.0)" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-xl shadow-md transition flex flex-col items-center">
+                    <span>🟢 GREEN</span>
+                    <span class="text-xs opacity-80">2.0x</span>
+                </button>
+                <button onclick="playGame('gold', 5.0)" class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-3 rounded-xl shadow-md transition flex flex-col items-center">
+                    <span>🟡 GOLD</span>
+                    <span class="text-xs opacity-80">5.0x</span>
+                </button>
+            </div>
+
+            <div id="game-status" class="text-center font-bold text-sm h-6">Choose a color to spin!</div>
         </div>
 
         <!-- Deposit Section -->
-        <div class="border-t border-slate-700 pt-4">
-            <h3 class="font-bold text-md text-emerald-400 mb-2">Deposit via Easypaisa (0325-6590936)</h3>
-            <input type="number" id="depositAmount" placeholder="Amount (PKR)" class="w-full p-2 rounded bg-slate-700 text-white mb-2 border border-slate-600">
-            <input type="text" id="tidInput" placeholder="Enter Transaction ID (TID)" class="w-full p-2 rounded bg-slate-700 text-white mb-3 border border-slate-600">
-            <button onclick="openDeposit()" class="w-full bg-emerald-600 hover:bg-emerald-700 p-2 rounded font-bold text-white">Send WhatsApp Deposit Request</button>
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-lg space-y-4">
+            <h3 class="font-bold text-sm text-cyan-400">Deposit via Easypaisa (0325-6590936)</h3>
+            <div class="space-y-3">
+                <input type="number" id="deposit-amount" placeholder="Amount (PKR)" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-cyan-400">
+                <input type="text" id="deposit-tid" placeholder="Enter Transaction ID (TID)" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-cyan-400">
+                <button onclick="sendWhatsAppDeposit()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-xl shadow-lg transition text-sm">Send WhatsApp Deposit Request</button>
+            </div>
         </div>
     </div>
 
