@@ -27,8 +27,8 @@
         let gameInterval = null;
         let currentMultiplier = 1.00;
         let activeBet = 0;
-        let isPlaying = false;
-        let botInterval = null;
+        let roundTimeLeft = 25;
+        let isPlaneFlying = false;
 
         window.addEventListener("DOMContentLoaded", () => {
             if (currentUser) {
@@ -37,6 +37,7 @@
                 document.getElementById("display-username").innerText = currentUser;
                 listenToBalance(currentUser);
                 startBotSimulation();
+                startAviatorRoundTimer();
             }
         });
 
@@ -61,14 +62,12 @@
                         document.getElementById("display-username").innerText = currentUser;
                         listenToBalance(currentUser);
                         startBotSimulation();
+                        startAviatorRoundTimer();
                     } else {
                         alert("❌ Incorrect password!");
                     }
                 } else {
-                    set(userRef, { 
-                        password: passwordInput, 
-                        balance: 100.00 
-                    });
+                    set(userRef, { password: passwordInput, balance: 100.00 });
                     currentUser = usernameInput;
                     localStorage.setItem("lucky_win_user", currentUser);
                     document.getElementById("auth-screen").classList.add("hidden");
@@ -76,6 +75,7 @@
                     document.getElementById("display-username").innerText = currentUser;
                     listenToBalance(currentUser);
                     startBotSimulation();
+                    startAviatorRoundTimer();
                 }
             });
         };
@@ -94,43 +94,116 @@
             });
         }
 
-        // Fake Bot Live Ticker Simulation
         function startBotSimulation() {
             const botContainer = document.getElementById("bot-feed");
             const botNames = ["Zain_786", "Bilal_King", "HassanX", "Raza_99", "Shahzad_Pr", "Malik_Co", "Hamza_Bet", "Adeel_01"];
             
-            botInterval = setInterval(() => {
+            setInterval(() => {
                 const randomBot = botNames[Math.floor(Math.random() * botNames.length)];
-                const randomBet = Math.floor(Math.random() * 500) + 50;
-                const isWin = Math.random() < 0.35; // Bots mostly lose or cash out low
+                const randomBet = Math.floor(Math.random() * 400) + 50;
+                const isWin = Math.random() < 0.40;
                 
                 let text = "";
                 if (isWin) {
-                    const randomMult = (Math.random() * 2.5 + 1.1).toFixed(2);
+                    const randomMult = (Math.random() * 2.2 + 1.1).toFixed(2);
                     const wonAmt = (randomBet * randomMult).toFixed(0);
-                    text = `<span class="text-emerald-400">🟢 ${randomBot} cashed out at ${randomMult}x (Won PKR ${wonAmt})</span>`;
+                    text = `<span class="text-emerald-400">🟢 ${randomBot} won PKR ${wonAmt} (${randomMult}x)</span>`;
                 } else {
-                    text = `<span class="text-red-400">❌ ${randomBot} lost PKR ${randomBet} (Crashed)</span>`;
+                    text = `<span class="text-red-400">❌ ${randomBot} lost PKR ${randomBet}</span>`;
                 }
 
-                botContainer.innerHTML = text + "<br>" + botContainer.innerHTML;
+                if(botContainer) botContainer.innerHTML = text + "<br>" + botContainer.innerHTML;
             }, 2500);
         }
 
-        // Aviator Jet Game Logic (High loss probability / House Edge)
-        window.startAviatorGame = async function() {
-            const betAmount = parseFloat(document.getElementById("bet-amount").value);
+        function startAviatorRoundTimer() {
+            const statusEl = document.getElementById("game-status");
+            setInterval(() => {
+                if (!isPlaneFlying) {
+                    roundTimeLeft--;
+                    if (roundTimeLeft <= 0) {
+                        roundTimeLeft = 25;
+                        triggerAutoFlight();
+                    } else {
+                        statusEl.innerText = `⏳ Next flight takes off in ${roundTimeLeft}s...`;
+                        statusEl.className = "text-center font-bold text-amber-400";
+                    }
+                }
+            }, 1000);
+        }
+
+        function triggerAutoFlight() {
+            if (isPlaneFlying) return;
+            isPlaneFlying = true;
             const statusEl = document.getElementById("game-status");
             const multiplierDisplay = document.getElementById("multiplier-display");
-            const startBtn = document.getElementById("start-btn");
             const cashoutBtn = document.getElementById("cashout-btn");
-            const jetEl = document.getElementById("flying-jet");
+            const jetEl = document.getElementById("flying-jet-icon");
+
+            currentMultiplier = 1.00;
+            multiplierDisplay.innerText = "1.00x";
+            statusEl.innerText = "✈️ Jet is flying high!";
+            statusEl.className = "text-center font-bold text-yellow-400 animate-pulse";
+            
+            jetEl.classList.remove("translate-x-0", "translate-y-0");
+            jetEl.classList.add("translate-x-24", "-translate-y-12", "scale-125");
+
+            if(activeBet > 0) {
+                cashoutBtn.classList.remove("hidden");
+            }
+
+            let crashPoint;
+            const randRoll = Math.random();
+            if (randRoll < 0.60) {
+                crashPoint = parseFloat((Math.random() * (1.30 - 1.01) + 1.01).toFixed(2));
+            } else {
+                crashPoint = parseFloat((Math.random() * (4.50 - 1.35) + 1.35).toFixed(2));
+            }
+
+            gameInterval = setInterval(() => {
+                currentMultiplier += 0.04;
+                multiplierDisplay.innerText = currentMultiplier.toFixed(2) + "x";
+
+                if (currentMultiplier >= crashPoint) {
+                    clearInterval(gameInterval);
+                    endFlight(false, crashPoint);
+                }
+            }, 120);
+        }
+
+        async function endFlight(isCashout, finalMult) {
+            if (!isPlaneFlying) return;
+            isPlaneFlying = false;
+            clearInterval(gameInterval);
+
+            const statusEl = document.getElementById("game-status");
+            const cashoutBtn = document.getElementById("cashout-btn");
+            const jetEl = document.getElementById("flying-jet-icon");
+            cashoutBtn.classList.add("hidden");
+
+            jetEl.classList.remove("translate-x-24", "-translate-y-12", "scale-125");
+            jetEl.classList.add("translate-x-0", "translate-y-0");
+
+            if (!isCashout && activeBet > 0) {
+                statusEl.innerText = `💥 FLEW AWAY! You lost PKR ${activeBet}`;
+                statusEl.className = "text-center font-bold text-red-500";
+                activeBet = 0;
+            } else if (!isCashout) {
+                statusEl.innerText = `💥 Flew away at ${finalMult}x! Round ended.`;
+                statusEl.className = "text-center font-bold text-slate-400";
+            }
+
+            roundTimeLeft = 25;
+        }
+
+        window.placeAviatorBet = async function() {
+            const betAmount = parseFloat(document.getElementById("bet-amount").value);
+            const statusEl = document.getElementById("game-status");
 
             if (isNaN(betAmount) || betAmount <= 0) {
                 statusEl.innerText = "⚠️ Enter a valid bet amount!";
                 return;
             }
-
             if (betAmount > window.currentBalance) {
                 statusEl.innerText = "❌ Insufficient balance! Please deposit.";
                 return;
@@ -141,75 +214,35 @@
             const userRef = ref(db, 'users/' + currentUser);
             await update(userRef, { balance: newBalance });
 
-            isPlaying = true;
-            currentMultiplier = 1.00;
-            multiplierDisplay.innerText = "1.00x";
-            statusEl.innerText = "✈️ Jet is taking off...";
-            statusEl.className = "text-center font-bold text-yellow-400";
-
-            startBtn.classList.add("hidden");
-            cashoutBtn.classList.remove("hidden");
-            jetEl.classList.add("animate-bounce");
-
-            // Heavy House Edge: 75% chance to crash very early (1.00x - 1.30x), 25% to go higher
-            let crashPoint;
-            const randRoll = Math.random();
-            if (randRoll < 0.75) {
-                crashPoint = parseFloat((Math.random() * (1.35 - 1.05) + 1.05).toFixed(2));
-            } else {
-                crashPoint = parseFloat((Math.random() * (4.50 - 1.40) + 1.40).toFixed(2));
-            }
-
-            gameInterval = setInterval(() => {
-                // Fast & random fluctuating increment speed
-                const increment = parseFloat((Math.random() * 0.08 + 0.02).toFixed(2));
-                currentMultiplier += increment;
-                multiplierDisplay.innerText = currentMultiplier.toFixed(2) + "x";
-
-                if (currentMultiplier >= crashPoint) {
-                    clearInterval(gameInterval);
-                    if (isPlaying) {
-                        isPlaying = false;
-                        jetEl.classList.remove("animate-bounce");
-                        statusEl.innerText = `💥 FLEW AWAY! You lost PKR ${activeBet}`;
-                        statusEl.className = "text-center font-bold text-red-500";
-                        cashoutBtn.classList.add("hidden");
-                        startBtn.classList.remove("hidden");
-                    }
-                }
-            }, 100);
+            statusEl.innerText = "✅ Bet placed successfully for next flight!";
+            statusEl.className = "text-center font-bold text-emerald-400";
         };
 
         window.cashOut = async function() {
-            if (!isPlaying) return;
-            clearInterval(gameInterval);
-            isPlaying = false;
-
+            if (!isPlaneFlying || activeBet === 0) return;
+            
+            const cashoutMult = currentMultiplier;
+            const currentBetVal = activeBet;
+            activeBet = 0;
+            
             const statusEl = document.getElementById("game-status");
-            const startBtn = document.getElementById("start-btn");
-            const cashoutBtn = document.getElementById("cashout-btn");
-            const jetEl = document.getElementById("flying-jet");
+            document.getElementById("cashout-btn").classList.add("hidden");
 
-            jetEl.classList.remove("animate-bounce");
-            const winAmount = activeBet * currentMultiplier;
-            let newBalance = window.currentBalance + winAmount;
+            const correctedWin = currentBetVal * cashoutMult;
+            let updatedBal = window.currentBalance + correctedWin;
 
             const userRef = ref(db, 'users/' + currentUser);
-            await update(userRef, { balance: newBalance });
+            await update(userRef, { balance: updatedBal });
 
-            statusEl.innerText = `🎉 Successful Cashout! Won PKR ${winAmount.toFixed(2)} at ${currentMultiplier.toFixed(2)}x`;
+            statusEl.innerText = `🎉 Successful Cashout! Won PKR ${correctedWin.toFixed(2)} at ${cashoutMult.toFixed(2)}x`;
             statusEl.className = "text-center font-bold text-emerald-400";
-
-            cashoutBtn.classList.add("hidden");
-            startBtn.classList.remove("hidden");
         };
 
         window.sendWhatsAppDeposit = function() {
             const amount = document.getElementById("deposit-amount").value;
             const tid = document.getElementById("deposit-tid").value.trim();
             if (!amount || !tid) { alert("Enter Amount and TID!"); return; }
-            const message = `Hello Admin, Deposit Request.%0A*User:* ${currentUser}%0A*Amount:* PKR ${amount}%0A*TID:* ${tid}`;
-            window.open(`https://wa.me/923256590936?text=${message}`, '_blank');
+            window.open(`https://wa.me/923256590936?text=Deposit%20Request%0AUser:%20${currentUser}%0AAmount:%20PKR%20${amount}%0ATID:%20${tid}`, '_blank');
         };
 
         window.sendWhatsAppWithdrawal = function() {
@@ -218,8 +251,7 @@
             const method = document.getElementById("withdraw-method").value;
             if (!amount || !accountNo) { alert("Enter amount and account number!"); return; }
             if (parseFloat(amount) > window.currentBalance) { alert("Exceeds balance!"); return; }
-            const message = `Hello Admin, Withdrawal Request.%0A*User:* ${currentUser}%0A*Amount:* PKR ${amount}%0A*Method:* ${method}%0A*Account:* ${accountNo}`;
-            window.open(`https://wa.me/923256590936?text=${message}`, '_blank');
+            window.open(`https://wa.me/923256590936?text=Withdrawal%20Request%0AUser:%20${currentUser}%0AAmount:%20PKR%20${amount}%0AMethod:%20${method}%0AAccount:%20${accountNo}`, '_blank');
         };
     </script>
 </head>
@@ -227,8 +259,8 @@
 
     <!-- Auth Screen -->
     <div id="auth-screen" class="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl mt-10">
-        <h1 class="text-3xl font-extrabold text-center text-transparent bg-clip-text bg-gradient-to-r from-red-500 to-amber-400 mb-6">Lucky Jet Aviator</h1>
-        <p class="text-slate-400 text-center mb-6 text-sm">Enter username and password to join flying arena!</p>
+        <h1 class="text-3xl font-extrabold text-center text-transparent bg-clip-text bg-gradient-to-r from-red-500 to-amber-400 mb-6">Lucky Win Arena</h1>
+        <p class="text-slate-400 text-center mb-6 text-sm">Login with username & password</p>
         <input type="text" id="username-input" placeholder="Username (e.g. Raheem)" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white mb-3 focus:outline-none focus:border-red-500">
         <input type="password" id="password-input" placeholder="Password" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white mb-4 focus:outline-none focus:border-red-500">
         <button onclick="loginUser()" class="w-full bg-gradient-to-r from-red-600 to-amber-500 text-white font-bold py-3 rounded-xl shadow-lg">Login / Register</button>
@@ -252,13 +284,12 @@
         <!-- Aviator Jet Arena -->
         <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-lg flex flex-col items-center space-y-4">
             <h3 class="font-bold text-lg text-red-500 flex items-center gap-2">
-                <span id="flying-jet">✈️</span> Aviator Jet Arena
+                <span id="flying-jet-icon" class="transition-all duration-700 inline-block">✈️</span> Aviator Jet Arena
             </h3>
             
             <div class="w-full h-40 bg-slate-950 border border-slate-800 rounded-xl flex flex-col items-center justify-center shadow-inner relative overflow-hidden">
-                <div class="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-red-950/30 via-transparent to-transparent"></div>
                 <span id="multiplier-display" class="text-6xl font-black text-amber-400 tracking-wider z-10">1.00x</span>
-                <span class="text-xs text-slate-500 mt-2 z-10">Fly high & cash out safely!</span>
+                <span class="text-xs text-slate-500 mt-2 z-10">Automatic flight every 25 seconds</span>
             </div>
 
             <div class="w-full">
@@ -266,16 +297,18 @@
                 <input type="number" id="bet-amount" value="100" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white font-bold focus:outline-none focus:border-red-500">
             </div>
 
-            <button id="start-btn" onclick="startAviatorGame()" class="w-full bg-gradient-to-r from-red-600 to-amber-500 text-white font-bold py-3.5 rounded-xl shadow-lg transition text-base">Place Bet & Fly</button>
-            <button id="cashout-btn" onclick="cashOut()" class="hidden w-full bg-gradient-to-r from-emerald-500 to-cyan-500 text-slate-950 font-bold py-3.5 rounded-xl shadow-lg transition text-base animate-bounce">CASHOUT</button>
+            <div class="grid grid-cols-2 gap-2 w-full">
+                <button onclick="placeAviatorBet()" class="bg-red-600 hover:bg-red-500 text-white font-bold py-3 rounded-xl shadow-lg transition text-sm">Place Bet</button>
+                <button id="cashout-btn" onclick="cashOut()" class="hidden bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold py-3 rounded-xl shadow-lg transition text-sm animate-bounce">CASHOUT</button>
+            </div>
 
-            <div id="game-status" class="text-center font-bold text-sm h-6">Ready to fly? Place your bet!</div>
+            <div id="game-status" class="text-center font-bold text-sm h-6 text-amber-400">Waiting for next round...</div>
 
             <!-- Bot Live Feed Ticker -->
             <div class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 h-20 overflow-hidden text-xs text-slate-400">
-                <p class="font-bold text-slate-500 mb-1">Live Player Activity:</p>
+                <p class="font-bold text-slate-500 mb-1">Live Aviator Activity:</p>
                 <div id="bot-feed" class="space-y-1">
-                    <span class="text-slate-600">Waiting for players...</span>
+                    <span class="text-slate-600">Syncing live players...</span>
                 </div>
             </div>
         </div>
