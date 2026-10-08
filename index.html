@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lucky Win Arena - Continuous Aviator</title>
+    <title>Bigo Live - Greedy Wheel Arena</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Firebase SDKs -->
     <script type="module">
@@ -24,12 +24,22 @@
         const db = getDatabase(app);
 
         let currentUser = localStorage.getItem("lucky_win_user") || "";
-        let gameInterval = null;
-        let currentMultiplier = 1.00;
-        let activeBet = 0;
-        let hasBetPlacedForNextRound = false;
-        let roundTimeLeft = 25;
-        let gameState = "waiting"; // "waiting", "flying", "crashed"
+        let roundTimeLeft = 20;
+        let gameState = "waiting"; // waiting, spinning, over
+        let selectedOption = null;
+        let userBetAmount = 0;
+
+        // 8 Wheel Options definition
+        const wheelSectors = [
+            { id: 0, name: "Veg 1", mult: 5, type: "veg" },
+            { id: 1, name: "Veg 2", mult: 5, type: "veg" },
+            { id: 2, name: "Veg 3", mult: 5, type: "veg" },
+            { id: 3, name: "Veg 4", mult: 5, type: "veg" },
+            { id: 4, name: "Burger", mult: 10, type: "food" },
+            { id: 5, name: "Kabab Stick", mult: 15, type: "food" },
+            { id: 6, name: "Chicken Leg", mult: 25, type: "food" },
+            { id: 7, name: "Meat", mult: 45, type: "food" }
+        ];
 
         window.addEventListener("DOMContentLoaded", () => {
             if (currentUser) {
@@ -37,8 +47,8 @@
                 document.getElementById("game-screen").classList.remove("hidden");
                 document.getElementById("display-username").innerText = currentUser;
                 listenToBalance(currentUser);
-                startBotSimulation();
-                startContinuousGameLoop();
+                startBigoBotFeed();
+                startWheelGameLoop();
             }
         });
 
@@ -47,36 +57,25 @@
             const passwordInput = document.getElementById("password-input").value.trim();
             
             if (!usernameInput || !passwordInput) {
-                alert("Please enter both username and password!");
+                alert("Please enter username and password!");
                 return;
             }
 
             const userRef = ref(db, 'users/' + usernameInput);
             get(userRef).then((snapshot) => {
                 if (snapshot.exists()) {
-                    const userData = snapshot.val();
-                    if (userData.password === passwordInput) {
+                    if (snapshot.val().password === passwordInput) {
                         currentUser = usernameInput;
                         localStorage.setItem("lucky_win_user", currentUser);
-                        document.getElementById("auth-screen").classList.add("hidden");
-                        document.getElementById("game-screen").classList.remove("hidden");
-                        document.getElementById("display-username").innerText = currentUser;
-                        listenToBalance(currentUser);
-                        startBotSimulation();
-                        startContinuousGameLoop();
+                        location.reload();
                     } else {
-                        alert("❌ Incorrect password!");
+                        alert("❌ Incorrect Password!");
                     }
                 } else {
-                    set(userRef, { password: passwordInput, balance: 100.00 });
+                    set(userRef, { password: passwordInput, balance: 500.00 });
                     currentUser = usernameInput;
                     localStorage.setItem("lucky_win_user", currentUser);
-                    document.getElementById("auth-screen").classList.add("hidden");
-                    document.getElementById("game-screen").classList.remove("hidden");
-                    document.getElementById("display-username").innerText = currentUser;
-                    listenToBalance(currentUser);
-                    startBotSimulation();
-                    startContinuousGameLoop();
+                    location.reload();
                 }
             });
         };
@@ -87,260 +86,254 @@
         };
 
         function listenToBalance(username) {
-            const balanceRef = ref(db, 'users/' + username + '/balance');
-            onValue(balanceRef, (snapshot) => {
-                const balance = snapshot.val() !== null ? snapshot.val() : 0;
-                document.getElementById("display-balance").innerText = "PKR " + parseFloat(balance).toFixed(2);
-                window.currentBalance = parseFloat(balance);
+            onValue(ref(db, 'users/' + username + '/balance'), (snapshot) => {
+                const bal = snapshot.val() !== null ? snapshot.val() : 0;
+                document.getElementById("display-balance").innerText = "💎 " + parseFloat(bal).toFixed(2);
+                window.currentBalance = parseFloat(bal);
             });
         }
 
-        function startBotSimulation() {
-            const botContainer = document.getElementById("bot-feed");
-            const botNames = ["Zain_786", "Bilal_King", "HassanX", "Raza_99", "Shahzad_Pr", "Malik_Co", "Hamza_Bet", "Adeel_01"];
-            
-            setInterval(() => {
-                const randomBot = botNames[Math.floor(Math.random() * botNames.length)];
-                const randomBet = Math.floor(Math.random() * 400) + 50;
-                const isWin = Math.random() < 0.40;
-                
-                let text = "";
-                if (isWin) {
-                    const randomMult = (Math.random() * 2.2 + 1.1).toFixed(2);
-                    const wonAmt = (randomBet * randomMult).toFixed(0);
-                    text = `<span class="text-emerald-400">🟢 ${randomBot} won PKR ${wonAmt} (${randomMult}x)</span>`;
-                } else {
-                    text = `<span class="text-red-400">❌ ${randomBot} lost PKR ${randomBet}</span>`;
-                }
+        window.selectBetOption = function(id, name, mult) {
+            if (gameState !== "waiting") {
+                alert("Betting is closed for this spin!");
+                return;
+            }
+            selectedOption = { id, name, mult };
+            document.querySelectorAll(".option-btn").forEach(btn => btn.classList.remove("border-amber-400", "bg-purple-900/60"));
+            document.getElementById(`opt-${id}`).classList.add("border-amber-400", "bg-purple-900/60");
+            document.getElementById("selected-target-text").innerText = `Selected: ${name} (${mult}x)`;
+        };
 
-                if(botContainer) botContainer.innerHTML = text + "<br>" + botContainer.innerHTML;
+        function startBigoBotFeed() {
+            const feed = document.getElementById("bigo-bot-feed");
+            const names = ["King_786", "Queen_Anaya", "BigoStar_Ali", "Diamond_Zain", "Prince_Adeel", "Malik_Live"];
+            setInterval(() => {
+                const name = names[Math.floor(Math.random() * names.length)];
+                const amt = Math.floor(Math.random() * 500) + 100;
+                const isWin = Math.random() < 0.40;
+                const txt = isWin 
+                    ? `<span class="text-emerald-400">💎 ${name} won on Greedy Wheel!</span>`
+                    : `<span class="text-rose-400">❌ ${name} lost ${amt} Diamonds</span>`;
+                if(feed) feed.innerHTML = txt + "<br>" + feed.innerHTML;
             }, 2500);
         }
 
-        // Continuous Loop handling 25s waiting and flight phases automatically
-        function startContinuousGameLoop() {
+        function startWheelGameLoop() {
             setInterval(async () => {
-                const statusEl = document.getElementById("game-status");
-                const multiplierDisplay = document.getElementById("multiplier-display");
-                const cashoutBtn = document.getElementById("cashout-btn");
-                const placeBetBtn = document.getElementById("place-bet-btn");
-                const jetEl = document.getElementById("flying-jet-icon");
+                const statusEl = document.getElementById("bigo-status");
 
                 if (gameState === "waiting") {
                     roundTimeLeft--;
                     if (roundTimeLeft > 0) {
-                        statusEl.innerText = `⏳ Next flight takes off in ${roundTimeLeft}s... Place your bets!`;
-                        statusEl.className = "text-center font-bold text-amber-400";
+                        statusEl.innerText = `⏱️ Betting Open: ${roundTimeLeft}s remaining`;
+                        statusEl.className = "text-center font-bold text-amber-400 text-xs";
                     } else {
-                        // Switch to Flying state
-                        gameState = "flying";
-                        roundTimeLeft = 25;
-                        currentMultiplier = 1.00;
-                        multiplierDisplay.innerText = "1.00x";
-                        statusEl.innerText = "✈️ Plane is flying high!";
-                        statusEl.className = "text-center font-bold text-yellow-400 animate-pulse";
-                        
-                        jetEl.classList.remove("translate-x-0", "translate-y-0");
-                        jetEl.classList.add("translate-x-24", "-translate-y-12", "scale-125");
+                        gameState = "spinning";
+                        roundTimeLeft = 20;
+                        statusEl.innerText = "🎡 Wheel is spinning...";
+                        statusEl.className = "text-center font-bold text-yellow-300 text-xs animate-pulse";
 
-                        if (hasBetPlacedForNextRound) {
-                            activeBet = window.tempBetAmount;
-                            cashoutBtn.classList.remove("hidden");
-                            placeBetBtn.classList.add("hidden");
-                        }
+                        // House Edge Logic (60% loss / 40% win)
+                        let winningSector;
+                        const isUserWin = Math.random() < 0.40;
 
-                        // Determine crash point (40% win / 60% loss house edge)
-                        let crashPoint;
-                        const randRoll = Math.random();
-                        if (randRoll < 0.60) {
-                            crashPoint = parseFloat((Math.random() * (1.30 - 1.01) + 1.01).toFixed(2));
+                        if (isUserWin && selectedOption) {
+                            winningSector = selectedOption;
                         } else {
-                            crashPoint = parseFloat((Math.random() * (4.50 - 1.35) + 1.35).toFixed(2));
+                            // Pick random sector (weighted towards lower 5x veg options to keep house edge)
+                            const randRoll = Math.random();
+                            if (randRoll < 0.70) {
+                                // Veg options (5x)
+                                const vegOptions = wheelSectors.filter(s => s.type === "veg");
+                                winningSector = vegOptions[Math.floor(Math.random() * vegOptions.length)];
+                            } else {
+                                // High multipliers
+                                const foodOptions = wheelSectors.filter(s => s.type === "food");
+                                winningSector = foodOptions[Math.floor(Math.random() * foodOptions.length)];
+                            }
                         }
 
-                        // Run flight increment
-                        gameInterval = setInterval(async () => {
-                            currentMultiplier += 0.04;
-                            multiplierDisplay.innerText = currentMultiplier.toFixed(2) + "x";
-
-                            if (currentMultiplier >= crashPoint) {
-                                clearInterval(gameInterval);
-                                gameState = "crashed";
-                                cashoutBtn.classList.add("hidden");
-                                placeBetBtn.classList.remove("hidden");
-
-                                jetEl.classList.remove("translate-x-24", "-translate-y-12", "scale-125");
-                                jetEl.classList.add("translate-x-0", "translate-y-0");
-
-                                if (hasBetPlacedForNextRound) {
-                                    statusEl.innerText = `💥 FLEW AWAY! You lost PKR ${activeBet}`;
-                                    statusEl.className = "text-center font-bold text-red-500";
-                                    activeBet = 0;
-                                    hasBetPlacedForNextRound = false;
-                                } else {
-                                    statusEl.innerText = `💥 Flew away at ${crashPoint}x!`;
-                                    statusEl.className = "text-center font-bold text-slate-400";
-                                }
-
-                                setTimeout(() => {
-                                    gameState = "waiting";
-                                }, 3000);
+                        // Animate wheel spinning effect visually
+                        let spinDisplay = document.getElementById("wheel-center-display");
+                        let counter = 0;
+                        let spinInterval = setInterval(() => {
+                            let randomSec = wheelSectors[Math.floor(Math.random() * wheelSectors.length)];
+                            spinDisplay.innerText = randomSec.name;
+                            counter++;
+                            if (counter > 12) {
+                                clearInterval(spinInterval);
+                                spinDisplay.innerText = `${winningSector.name} (${winningSector.mult}x)`;
+                                resolveSpinResult(winningSector);
                             }
-                        }, 120);
+                        }, 150);
                     }
                 }
             }, 1000);
         }
 
-        window.placeAviatorBet = async function() {
-            if (gameState !== "waiting") {
-                alert("Please wait for the next round betting phase!");
-                return;
+        async function resolveSpinResult(winningSector) {
+            const statusEl = document.getElementById("bigo-status");
+            let userWon = false;
+
+            if (selectedOption && selectedOption.id === winningSector.id) {
+                userWon = true;
+                const prize = userBetAmount * winningSector.mult;
+                let newBal = window.currentBalance + prize;
+                await update(ref(db, 'users/' + currentUser), { balance: newBal });
+                statusEl.innerText = `🎉 WIN! Wheel landed on ${winningSector.name} (${winningSector.mult}x). Won 💎${prize}`;
+                statusEl.className = "text-center font-bold text-emerald-400 text-xs";
+            } else if (userBetAmount > 0) {
+                statusEl.innerText = `💥 LOST! Wheel landed on ${winningSector.name} (${winningSector.mult}x)`;
+                statusEl.className = "text-center font-bold text-rose-500 text-xs";
+            } else {
+                statusEl.innerText = `📌 Result: ${winningSector.name} (${winningSector.mult}x)`;
+                statusEl.className = "text-center font-bold text-purple-300 text-xs";
             }
 
-            const betAmount = parseFloat(document.getElementById("bet-amount").value);
-            const statusEl = document.getElementById("game-status");
+            // Reset bet for next round
+            userBetAmount = 0;
+            selectedOption = null;
+            document.querySelectorAll(".option-btn").forEach(btn => btn.classList.remove("border-amber-400", "bg-purple-900/60"));
+            document.getElementById("selected-target-text").innerText = "Select an item to place bet";
 
-            if (isNaN(betAmount) || betAmount <= 0) {
-                statusEl.innerText = "⚠️ Enter a valid bet amount!";
-                return;
-            }
-            if (betAmount > window.currentBalance) {
-                statusEl.innerText = "❌ Insufficient balance! Please deposit.";
-                return;
-            }
+            setTimeout(() => {
+                gameState = "waiting";
+            }, 3500);
+        }
 
-            window.tempBetAmount = betAmount;
-            let newBalance = window.currentBalance - betAmount;
-            const userRef = ref(db, 'users/' + currentUser);
-            await update(userRef, { balance: newBalance });
+        window.placeWheelBet = async function() {
+            if (gameState !== "waiting") { alert("Betting is locked while wheel is spinning!"); return; }
+            if (!selectedOption) { alert("Please click and select a wheel option first!"); return; }
+            const amt = parseFloat(document.getElementById("user-bet-input").value);
+            if (isNaN(amt) || amt <= 0) { alert("Enter valid diamond amount!"); return; }
+            if (amt > window.currentBalance) { alert("Insufficient diamonds!"); return; }
 
-            hasBetPlacedForNextRound = true;
-            statusEl.innerText = "✅ Bet locked in for upcoming flight!";
-            statusEl.className = "text-center font-bold text-emerald-400";
-        };
-
-        window.cashOut = async function() {
-            if (gameState !== "flying" || !hasBetPlacedForNextRound) return;
-            
-            const cashoutMult = currentMultiplier;
-            const currentBetVal = activeBet;
-            hasBetPlacedForNextRound = false;
-            activeBet = 0;
-            
-            const statusEl = document.getElementById("game-status");
-            document.getElementById("cashout-btn").classList.add("hidden");
-            document.getElementById("place-bet-btn").classList.remove("hidden");
-
-            const correctedWin = currentBetVal * cashoutMult;
-            let updatedBal = window.currentBalance + correctedWin;
-
-            const userRef = ref(db, 'users/' + currentUser);
-            await update(userRef, { balance: updatedBal });
-
-            statusEl.innerText = `🎉 Successful Cashout! Won PKR ${correctedWin.toFixed(2)} at ${cashoutMult.toFixed(2)}x`;
-            statusEl.className = "text-center font-bold text-emerald-400";
+            userBetAmount = amt;
+            await update(ref(db, 'users/' + currentUser), { balance: window.currentBalance - amt });
+            document.getElementById("bigo-status").innerText = `✅ Bet locked on ${selectedOption.name} for 💎${amt}`;
+            document.getElementById("bigo-status").className = "text-center font-bold text-emerald-400 text-xs";
         };
 
         window.sendWhatsAppDeposit = function() {
-            const amount = document.getElementById("deposit-amount").value;
-            const tid = document.getElementById("deposit-tid").value.trim();
-            if (!amount || !tid) { alert("Enter Amount and TID!"); return; }
-            window.open(`https://wa.me/923256590936?text=Deposit%20Request%0AUser:%20${currentUser}%0AAmount:%20PKR%20${amount}%0ATID:%20${tid}`, '_blank');
+            const amt = document.getElementById("dep-amt").value;
+            const tid = document.getElementById("dep-tid").value;
+            window.open(`https://wa.me/923256590936?text=Bigo%20Deposit%0AUser:${currentUser}%0AAmount:${amt}%0ATID:${tid}`, '_blank');
         };
 
         window.sendWhatsAppWithdrawal = function() {
-            const amount = document.getElementById("withdraw-amount").value;
-            const accountNo = document.getElementById("withdraw-account").value.trim();
-            const method = document.getElementById("withdraw-method").value;
-            if (!amount || !accountNo) { alert("Enter amount and account number!"); return; }
-            if (parseFloat(amount) > window.currentBalance) { alert("Exceeds balance!"); return; }
-            window.open(`https://wa.me/923256590936?text=Withdrawal%20Request%0AUser:%20${currentUser}%0AAmount:%20PKR%20${amount}%0AMethod:%20${method}%0AAccount:%20${accountNo}`, '_blank');
+            const amt = document.getElementById("w-amt").value;
+            const acc = document.getElementById("w-acc").value;
+            window.open(`https://wa.me/923256590936?text=Bigo%20Withdraw%0AUser:${currentUser}%0AAmount:${amt}%0AAccount:${acc}`, '_blank');
         };
     </script>
 </head>
-<body class="bg-slate-950 text-white min-h-screen flex flex-col items-center justify-start p-4">
+<body class="bg-[#0f0b1e] text-white min-h-screen flex flex-col items-center p-3 font-sans">
 
-    <!-- Auth Screen -->
-    <div id="auth-screen" class="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl mt-10">
-        <h1 class="text-3xl font-extrabold text-center text-transparent bg-clip-text bg-gradient-to-r from-red-500 to-amber-400 mb-6">Lucky Win Arena</h1>
-        <p class="text-slate-400 text-center mb-6 text-sm">Login with username & password</p>
-        <input type="text" id="username-input" placeholder="Username (e.g. Raheem)" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white mb-3 focus:outline-none focus:border-red-500">
-        <input type="password" id="password-input" placeholder="Password" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white mb-4 focus:outline-none focus:border-red-500">
-        <button onclick="loginUser()" class="w-full bg-gradient-to-r from-red-600 to-amber-500 text-white font-bold py-3 rounded-xl shadow-lg">Login / Register</button>
+    <!-- Auth Section -->
+    <div id="auth-screen" class="w-full max-w-sm bg-[#1a1333] border border-purple-900 rounded-3xl p-6 shadow-2xl mt-12">
+        <div class="text-center mb-6">
+            <span class="text-3xl">🎡</span>
+            <h1 class="text-2xl font-black text-amber-400 tracking-wider">BIGO GREEDY WHEEL</h1>
+            <p class="text-xs text-purple-300 mt-1">8-Option Live Arena</p>
+        </div>
+        <input type="text" id="username-input" placeholder="Bigo ID / Username" class="w-full bg-[#120c24] border border-purple-800 rounded-xl p-3 text-sm text-white mb-3 focus:outline-none focus:border-amber-400">
+        <input type="password" id="password-input" placeholder="Security Password" class="w-full bg-[#120c24] border border-purple-800 rounded-xl p-3 text-sm text-white mb-5 focus:outline-none focus:border-amber-400">
+        <button onclick="loginUser()" class="w-full bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 font-extrabold py-3 rounded-xl shadow-lg text-sm">Enter Live Room</button>
     </div>
 
-    <!-- Game Screen -->
-    <div id="game-screen" class="hidden w-full max-w-md space-y-6">
-        <!-- Header Info -->
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex justify-between items-center shadow-lg">
+    <!-- Game Room Screen -->
+    <div id="game-screen" class="hidden w-full max-w-sm space-y-4">
+        <!-- Top Bar -->
+        <div class="bg-[#1a1333] border border-purple-900/60 rounded-2xl p-3 flex justify-between items-center shadow-md">
             <div>
-                <p class="text-xs text-slate-400">Player</p>
-                <h2 id="display-username" class="font-bold text-amber-400 text-lg"></h2>
+                <p class="text-[10px] text-purple-400">Live Host</p>
+                <h2 id="display-username" class="font-bold text-amber-300 text-sm"></h2>
             </div>
             <div class="text-right">
-                <p class="text-xs text-slate-400">Balance</p>
-                <h2 id="display-balance" class="font-bold text-emerald-400 text-xl">PKR 0.00</h2>
+                <p class="text-[10px] text-purple-400">Diamonds</p>
+                <h2 id="display-balance" class="font-bold text-emerald-400 text-base">💎 0.00</h2>
             </div>
-            <button onclick="logoutUser()" class="text-xs bg-red-500/20 text-red-400 border border-red-500/30 px-3 py-1.5 rounded-lg">Logout</button>
+            <button onclick="logoutUser()" class="text-[10px] bg-rose-500/20 text-rose-300 border border-rose-500/30 px-2.5 py-1 rounded-lg">Exit</button>
         </div>
 
-        <!-- Aviator Jet Arena -->
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-lg flex flex-col items-center space-y-4">
-            <h3 class="font-bold text-lg text-red-500 flex items-center gap-2">
-                <span id="flying-jet-icon" class="transition-all duration-700 inline-block">✈️</span> Continuous Aviator Arena
-            </h3>
+        <!-- Wheel Arena Card -->
+        <div class="bg-[#1a1333] border border-purple-900/80 rounded-3xl p-4 shadow-xl flex flex-col items-center space-y-3 relative overflow-hidden">
+            <div class="absolute top-2 left-3 bg-purple-950/80 px-2.5 py-0.5 rounded-full border border-purple-700 text-[10px] text-amber-300 font-bold">🔴 LIVE WHEEL</div>
             
-            <div class="w-full h-40 bg-slate-950 border border-slate-800 rounded-xl flex flex-col items-center justify-center shadow-inner relative overflow-hidden">
-                <span id="multiplier-display" class="text-6xl font-black text-amber-400 tracking-wider z-10">1.00x</span>
-                <span class="text-xs text-slate-500 mt-2 z-10">Live running round system</span>
+            <!-- Wheel Center Display -->
+            <div class="w-full h-32 bg-[#0c0817] border border-purple-900 rounded-2xl flex flex-col items-center justify-center shadow-inner mt-4 relative">
+                <div class="absolute inset-0 bg-gradient-to-t from-amber-500/10 to-transparent rounded-2xl"></div>
+                <span id="wheel-center-display" class="text-2xl font-black text-amber-400 tracking-wider z-10 drop-shadow-[0_0_15px_rgba(251,191,36,0.5)]">READY</span>
+                <span id="bigo-status" class="text-center font-bold text-xs text-amber-400 mt-1 z-10">Waiting for next spin...</span>
             </div>
 
-            <div class="w-full">
-                <label class="text-xs text-slate-400 mb-1 block">Bet Amount (PKR)</label>
-                <input type="number" id="bet-amount" value="100" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white font-bold focus:outline-none focus:border-red-500">
+            <!-- 8 Options Grid (Left 4 Vegs @ 5x, Right 4 Foods @ 10x, 15x, 25x, 45x) -->
+            <div class="w-full grid grid-cols-4 gap-1.5">
+                <button id="opt-0" onclick="selectBetOption(0, 'Veg 1', 5)" class="option-btn bg-[#120c24] border border-purple-800 rounded-xl p-2 text-center transition">
+                    <div class="text-lg">🥦</div>
+                    <div class="text-[10px] text-amber-300 font-bold">5x</div>
+                </button>
+                <button id="opt-1" onclick="selectBetOption(1, 'Veg 2', 5)" class="option-btn bg-[#120c24] border border-purple-800 rounded-xl p-2 text-center transition">
+                    <div class="text-lg">🥕</div>
+                    <div class="text-[10px] text-amber-300 font-bold">5x</div>
+                </button>
+                <button id="opt-2" onclick="selectBetOption(2, 'Veg 3', 5)" class="option-btn bg-[#120c24] border border-purple-800 rounded-xl p-2 text-center transition">
+                    <div class="text-lg">🍅</div>
+                    <div class="text-[10px] text-amber-300 font-bold">5x</div>
+                </button>
+                <button id="opt-3" onclick="selectBetOption(3, 'Veg 4', 5)" class="option-btn bg-[#120c24] border border-purple-800 rounded-xl p-2 text-center transition">
+                    <div class="text-lg">🌽</div>
+                    <div class="text-[10px] text-amber-300 font-bold">5x</div>
+                </button>
+                <button id="opt-4" onclick="selectBetOption(4, 'Burger', 10)" class="option-btn bg-[#120c24] border border-purple-800 rounded-xl p-2 text-center transition">
+                    <div class="text-lg">🍔</div>
+                    <div class="text-[10px] text-amber-400 font-bold">10x</div>
+                </button>
+                <button id="opt-5" onclick="selectBetOption(5, 'Kabab Stick', 15)" class="option-btn bg-[#120c24] border border-purple-800 rounded-xl p-2 text-center transition">
+                    <div class="text-lg">🍢</div>
+                    <div class="text-[10px] text-amber-400 font-bold">15x</div>
+                </button>
+                <button id="opt-6" onclick="selectBetOption(6, 'Chicken Leg', 25)" class="option-btn bg-[#120c24] border border-purple-800 rounded-xl p-2 text-center transition">
+                    <div class="text-lg">🍗</div>
+                    <div class="text-[10px] text-amber-400 font-bold">25x</div>
+                </button>
+                <button id="opt-7" onclick="selectBetOption(7, 'Meat', 45)" class="option-btn bg-[#120c24] border border-purple-800 rounded-xl p-2 text-center transition">
+                    <div class="text-lg">🥩</div>
+                    <div class="text-[10px] text-amber-400 font-bold">45x</div>
+                </button>
+            </div>
+
+            <div id="selected-target-text" class="text-[11px] text-purple-300 font-semibold">Select an item to place bet</div>
+
+            <!-- Bet Input & Button -->
+            <div class="w-full space-y-2">
+                <input type="number" id="user-bet-input" value="100" class="w-full bg-[#120c24] border border-purple-800 rounded-xl p-2.5 text-xs text-white font-bold text-center focus:outline-none focus:border-amber-400" placeholder="Bet Amount">
             </div>
 
             <div class="grid grid-cols-2 gap-2 w-full">
-                <button id="place-bet-btn" onclick="placeAviatorBet()" class="bg-red-600 hover:bg-red-500 text-white font-bold py-3 rounded-xl shadow-lg transition text-sm">Place Bet</button>
-                <button id="cashout-btn" onclick="cashOut()" class="hidden bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold py-3 rounded-xl shadow-lg transition text-sm animate-bounce">CASHOUT</button>
+                <button onclick="placeWheelBet()" class="bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 font-black py-2.5 rounded-xl shadow-lg text-xs uppercase tracking-wider">Place Bet</button>
+                <button onclick="window.location.reload()" class="bg-[#120c24] border border-purple-800 text-purple-300 font-bold py-2.5 rounded-xl text-xs">Refresh</button>
             </div>
 
-            <div id="game-status" class="text-center font-bold text-sm h-6 text-amber-400">Syncing live rounds...</div>
-
-            <!-- Bot Live Feed Ticker -->
-            <div class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 h-20 overflow-hidden text-xs text-slate-400">
-                <p class="font-bold text-slate-500 mb-1">Live Aviator Activity:</p>
-                <div id="bot-feed" class="space-y-1">
-                    <span class="text-slate-600">Syncing live players...</span>
+            <!-- Live Bot Ticker -->
+            <div class="w-full bg-[#0c0817] border border-purple-900/50 rounded-xl p-2.5 h-14 overflow-hidden text-[10px] text-purple-300">
+                <div id="bigo-bot-feed" class="space-y-0.5">
+                    <span class="text-purple-500">Syncing room activity...</span>
                 </div>
             </div>
         </div>
 
-        <!-- Deposit Section -->
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-lg space-y-4">
-            <h3 class="font-bold text-sm text-cyan-400">Deposit via Easypaisa (0325-6590936)</h3>
-            <div class="space-y-3">
-                <input type="number" id="deposit-amount" placeholder="Amount (PKR)" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-sm text-white">
-                <input type="text" id="deposit-tid" placeholder="Transaction ID (TID)" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-sm text-white">
-                <button onclick="sendWhatsAppDeposit()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-xl text-sm">Send WhatsApp Deposit Request</button>
-            </div>
+        <!-- Deposit / Withdraw Section -->
+        <div class="bg-[#1a1333] border border-purple-900/60 rounded-2xl p-4 space-y-3">
+            <h3 class="font-bold text-xs text-amber-400">💎 Diamond Recharge (0325-6590936)</h3>
+            <input type="number" id="dep-amt" placeholder="Diamonds / PKR Amount" class="w-full bg-[#120c24] border border-purple-800 rounded-xl p-2 text-xs text-white">
+            <input type="text" id="dep-tid" placeholder="Transaction ID (TID)" class="w-full bg-[#120c24] border border-purple-800 rounded-xl p-2 text-xs text-white">
+            <button onclick="sendWhatsAppDeposit()" class="w-full bg-emerald-600 text-white font-bold py-2 rounded-xl text-xs">WhatsApp Deposit Request</button>
         </div>
 
-        <!-- Withdrawal Section -->
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-lg space-y-4">
-            <h3 class="font-bold text-sm text-amber-400">Withdraw Funds</h3>
-            <div class="space-y-3">
-                <input type="number" id="withdraw-amount" placeholder="Withdraw Amount (PKR)" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-sm text-white">
-                <select id="withdraw-method" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-sm text-white">
-                    <option value="Easypaisa">Easypaisa</option>
-                    <option value="JazzCash">JazzCash</option>
-                </select>
-                <input type="text" id="withdraw-account" placeholder="Account Number" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-sm text-white">
-                <button onclick="sendWhatsAppWithdrawal()" class="w-full bg-amber-500 text-slate-950 font-bold py-3 rounded-xl text-sm">Send WhatsApp Withdrawal Request</button>
-            </div>
-        </div>
-    </div>
-
-</body>
-</html>
+        <div class="bg-[#1a1333] border border-purple-900/60 rounded-2xl p-4 space-y-3">
+            <h3 class="font-bold text-xs text-amber-400">💸 Cashout / Withdraw</h3>
+            <input type="number" id="w-amt" placeholder="Withdraw Amount" class="w-full bg-[#120c24] border border-purple-800 rounded-xl p-2 text-xs text-white">
+            <input type="text" id="w-acc" placeholder="Easypaisa/JazzCash Number" class="w-full bg-[#120c24] border border-purple-800 rounded-xl p-2 text-xs text-white">
+            <button onclick="sendWhatsAppWithdrawal()" class="w-full bg-amber-500 text-slate-950 font-bold py-2 rounded-xl text-xs">WhatsApp Withdraw Request</button>
+    
