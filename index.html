@@ -3,207 +3,149 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lucky Spin & Deposit - P2P Gaming</title>
+    <title>Lucky Win Arena - P2P Gaming</title>
     <style>
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
         body {
+            font-family: Arial, sans-serif;
             background-color: #0f172a;
             color: #ffffff;
-            padding: 20px;
+            margin: 0;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
         }
         .container {
+            width: 100%;
             max-width: 400px;
-            margin: 0 auto;
             background: #1e293b;
-            border-radius: 12px;
             padding: 20px;
+            border-radius: 12px;
             box-shadow: 0 4px 15px rgba(0,0,0,0.5);
         }
-        h2 {
-            text-align: center;
-            color: #38bdf8;
-            margin-bottom: 15px;
-        }
-        .balance-box {
+        h2 { text-align: center; color: #38bdf8; }
+        .card {
             background: #334155;
             padding: 15px;
             border-radius: 8px;
+            margin-bottom: 15px;
             text-align: center;
-            font-size: 18px;
-            margin-bottom: 20px;
-        }
-        .balance-box span {
-            color: #4ade80;
-            font-weight: bold;
-        }
-        .game-area {
-            background: #0f172a;
-            padding: 20px;
-            border-radius: 8px;
-            text-align: center;
-            margin-bottom: 20px;
         }
         .btn {
             background: #f59e0b;
-            color: #000;
+            color: white;
             border: none;
-            padding: 10px 20px;
+            padding: 12px;
+            width: 100%;
+            border-radius: 6px;
             font-size: 16px;
             font-weight: bold;
-            border-radius: 6px;
             cursor: pointer;
-            width: 100%;
-            margin-top: 10px;
         }
-        .btn:hover {
-            background: #d97706;
-        }
-        .deposit-section {
-            background: #334155;
-            padding: 15px;
-            border-radius: 8px;
-        }
-        .deposit-section h3 {
-            font-size: 16px;
-            margin-bottom: 10px;
-            color: #38bdf8;
-        }
-        .instruction {
-            font-size: 13px;
-            color: #cbd5e1;
-            margin-bottom: 10px;
-            line-height: 1.4;
-        }
-        .form-group {
-            margin-bottom: 12px;
-        }
-        label {
-            display: block;
-            font-size: 13px;
-            margin-bottom: 5px;
+        .btn-submit {
+            background: #22c55e;
         }
         input {
             width: 100%;
             padding: 10px;
+            margin-top: 5px;
+            margin-bottom: 12px;
             border-radius: 6px;
             border: 1px solid #475569;
             background: #0f172a;
-            color: #fff;
+            color: white;
+            box-sizing: border-box;
         }
-        .submit-btn {
-            background: #22c55e;
-            color: #fff;
-        }
-        .submit-btn:hover {
-            background: #16a34a;
-        }
-        #result-msg {
-            text-align: center;
-            margin-top: 10px;
+        .deposit-info {
+            text-align: left;
             font-size: 14px;
+            background: #1e293b;
+            padding: 10px;
+            border-radius: 6px;
+            border-left: 4px solid #f59e0b;
+            margin-bottom: 10px;
         }
     </style>
 </head>
 <body>
 
-    <div class="container">
-        <h2>🔥 Lucky Win Arena</h2>
-        
-        <!-- User Balance Display -->
-        <div class="balance-box">
-            Wallet Balance: <span id="user-balance">0.00</span> PKR
-        </div>
-
-        <!-- Game Simulation Area -->
-        <div class="game-area">
-            <h3>Greedy Multiplier</h3>
-            <p id="game-status" style="font-size: 24px; margin: 15px 0; color: #facc15;">Click Spin to Play</p>
-            <button class="btn" onclick="playGame()">SPIN (Cost: 100 PKR)</button>
-        </div>
-
-        <!-- P2P Easypaisa Deposit Section -->
-        <div class="deposit-section">
-            <h3>💳 Instant Easypaisa Deposit</h3>
-            <div class="instruction">
-                1. Send money to Easypaisa: <b>0300-1234567</b> (Title: Abdul Raheem)<br>
-                2. Enter your Transaction ID (TID) below after sending.
-            </div>
-            
-            <div class="form-group">
-                <label>Your Easypaisa Number:</label>
-                <input type="text" id="sender-number" placeholder="03XXXXXXXXX">
-            </div>
-
-            <div class="form-group">
-                <label>Transaction ID (TID):</label>
-                <input type="text" id="tid-input" placeholder="Enter 11-digit TID">
-            </div>
-
-            <div class="form-group">
-                <label>Amount (PKR):</label>
-                <input type="number" id="deposit-amount" placeholder="e.g. 500">
-            </div>
-
-            <button class="btn submit-btn" onclick="submitDeposit()">Submit Deposit Request</button>
-            <p id="result-msg"></p>
-        </div>
+<div class="container">
+    <h2>🔥 Lucky Win Arena</h2>
+    
+    <div class="card">
+        <h3>Wallet Balance: <span id="balance">0.00</span> PKR</h3>
     </div>
 
-    <script>
-        let balance = 0;
+    <div class="card">
+        <h3>Greedy Multiplier</h3>
+        <p id="game-status">Click Spin to Play</p>
+        <button class="btn" onclick="playGame()">SPIN (Cost: 100 PKR)</button>
+    </div>
 
-        function playGame() {
-            if (balance < 100) {
-                alert("Aapka balance kam hai! Pehle deposit karein.");
-                return;
-            }
-            balance -= 100;
-            document.getElementById("user-balance").innerText = balance.toFixed(2);
-            
-            let status = document.getElementById("game-status");
-            status.innerText = "Spinning...";
-            
-            setTimeout(() => {
-                let win = Math.random() > 0.5; // 50% chance
-                if (win) {
-                    let prize = 200;
-                    balance += prize;
-                    status.innerText = `🎉 You Won ${prize} PKR!`;
-                } else {
-                    status.innerText = "❌ You Lost! Try Again.";
-                }
-                document.getElementById("user-balance").innerText = balance.toFixed(2);
-                
-            }, 1000);
+    <div class="card" style="text-align: left;">
+        <h3 style="color: #38bdf8; text-align: center; margin-top: 0;">instant Easypaisa Deposit</h3>
+        <div class="deposit-info">
+            1. Send money to Easypaisa: <b>0325-6590936</b><br>
+            (Title: Abdul Raheem)<br>
+            2. Enter your Transaction ID (TID) below after sending.
+        </div>
+        
+        <label>Your Easypaisa Number:</label>
+        <input type="text" id="userNumber" placeholder="e.g. 03XXXXXXXXX">
+
+        <label>Transaction ID (TID):</label>
+        <input type="text" id="userTid" placeholder="Enter 11-digit TID">
+
+        <label>Amount (PKR):</label>
+        <input type="number" id="userAmount" placeholder="e.g. 500">
+
+        <button class="btn btn-submit" onclick="submitDeposit()">Submit Deposit Request</button>
+    </div>
+</div>
+
+<script>
+    let balance = 0.00;
+
+    function updateBalance() {
+        document.getElementById("balance").innerText = balance.toFixed(2);
+    }
+
+    function playGame() {
+        if (balance < 100) {
+            alert("Insufficient balance! Please deposit funds first.");
+            return;
+        }
+        balance -= 100;
+        let multipliers = [0, 0, 1.5, 2, 0, 5, 10, 0];
+        let rand = multipliers[Math.floor(Math.random() * multipliers.length)];
+        
+        if (rand > 0) {
+            let winAmount = 100 * rand;
+            balance += winAmount;
+            document.getElementById("game-status").innerText = `🎉 You Won ${winAmount} PKR (${rand}x)!`;
+        } else {
+            document.getElementById("game-status").innerText = "❌ Better luck next time!";
+        }
+        updateBalance();
+    }
+
+    function submitDeposit() {
+        let number = document.getElementById("userNumber").value;
+        let tid = document.getElementById("userTid").value;
+        let amount = document.getElementById("userAmount").value;
+
+        if (!number || !tid || !amount) {
+            alert("Please fill in all fields!");
+            return;
         }
 
-        function submitDeposit() {
-            let number = document.getElementById("sender-number").value;
-            let tid = document.getElementById("tid-input").value;
-            let amount = document.getElementById("deposit-amount").value;
-            let msg = document.getElementById("result-msg");
-
-            if (number === "" || tid === "" || amount === "") {
-                msg.style.color = "#f87171";
-                msg.innerText = "Bhai, saari fields fill karna lazmi hain!";
-                return;
-            }
-
-            // Yahan par aap baad mein backend/database ka code lagayenge jo yeh TID aapke admin panel tak pohchayega.
-            msg.style.color = "#4ade80";
-            msg.innerText = "Request submit ho gayi! Agent verification ke baad balance add ho jayega.";
-            
-            // Clear inputs
-            document.getElementById("sender-number").value = "";
-            document.getElementById("tid-input").value = "";
-            document.getElementById("deposit-amount").value = "";
-        }
-    </script>
+        let adminWhatsapp = "923256590936";
+        let message = `*New Deposit Request*%0A- Sender Number: ${number}%0A- Amount: ${amount} PKR%0A- TID: ${tid}`;
+        
+        let whatsappUrl = `https://wa.me/${adminWhatsapp}?text=${message}`;
+        window.open(whatsappUrl, '_blank');
+    }
+</script>
 
 </body>
 </html>
