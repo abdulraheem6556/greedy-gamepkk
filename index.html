@@ -3,149 +3,146 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lucky Win Arena - P2P Gaming</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #0f172a;
-            color: #ffffff;
-            margin: 0;
-            padding: 15px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
+    <title>Lucky Win Arena</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getDatabase, ref, set, get, update, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyC2uxfVYbNrksWicBromCVM5E...",
+            authDomain: "greedygamepkk.firebaseapp.com",
+            databaseURL: "https://greedygamepkk-default-rtdb.firebaseio.com",
+            projectId: "greedygamepkk",
+            storageBucket: "greedygamepkk.appspot.com",
+            messagingSenderId: "658430310829",
+            appId: "1:658430310829:web:69b8272e1c5a..."
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+
+        let currentUser = localStorage.getItem("lucky_user") || "";
+
+        window.loginUser = function() {
+            const username = document.getElementById("usernameInput").value.trim();
+            if(!username) {
+                alert("Please enter a username!");
+                return;
+            }
+            currentUser = username;
+            localStorage.setItem("lucky_user", username);
+            
+            document.getElementById("auth-screen").classList.add("hidden");
+            document.getElementById("game-screen").classList.remove("hidden");
+            document.getElementById("display-user").innerText = currentUser;
+
+            const userRef = ref(db, 'users/' + currentUser);
+            get(userRef).then((snapshot) => {
+                if (!snapshot.exists()) {
+                    set(userRef, { balance: 100 }); // Bonus starting balance
+                }
+            });
+
+            onValue(userRef, (snapshot) => {
+                const data = snapshot.val();
+                if(data) {
+                    document.getElementById("user-balance").innerText = data.balance.toFixed(2);
+                }
+            });
+        };
+
+        if(currentUser) {
+            document.getElementById("usernameInput").value = currentUser;
+            window.loginUser();
         }
-        .container {
-            width: 100%;
-            max-width: 400px;
-            background: #1e293b;
-            padding: 20px;
-            border-radius: 12px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
-        }
-        h2 { text-align: center; color: #38bdf8; }
-        .card {
-            background: #334155;
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 15px;
-            text-align: center;
-        }
-        .btn {
-            background: #f59e0b;
-            color: white;
-            border: none;
-            padding: 12px;
-            width: 100%;
-            border-radius: 6px;
-            font-size: 16px;
-            font-weight: bold;
-            cursor: pointer;
-        }
-        .btn-submit {
-            background: #22c55e;
-        }
-        input {
-            width: 100%;
-            padding: 10px;
-            margin-top: 5px;
-            margin-bottom: 12px;
-            border-radius: 6px;
-            border: 1px solid #475569;
-            background: #0f172a;
-            color: white;
-            box-sizing: border-box;
-        }
-        .deposit-info {
-            text-align: left;
-            font-size: 14px;
-            background: #1e293b;
-            padding: 10px;
-            border-radius: 6px;
-            border-left: 4px solid #f59e0b;
-            margin-bottom: 10px;
-        }
-    </style>
+
+        window.placeBet = function(multiplier) {
+            const betAmount = parseFloat(document.getElementById("betAmount").value);
+            const userRef = ref(db, 'users/' + currentUser);
+
+            get(userRef).then((snapshot) => {
+                if(snapshot.exists()) {
+                    let currentBalance = snapshot.val().balance;
+                    if(currentBalance < betAmount || betAmount <= 0) {
+                        alert("Insufficient Balance!");
+                        return;
+                    }
+
+                    // Game logic: 50% win chance
+                    const win = Math.random() < 0.45;
+                    let newBalance = currentBalance - betAmount;
+                    let resultText = "";
+
+                    if(win) {
+                        const winAmount = betAmount * multiplier;
+                        newBalance += winAmount;
+                        resultText = `🎉 You Won PKR ${winAmount.toFixed(2)}!`;
+                    } else {
+                        resultText = `❌ You Lost PKR ${betAmount.toFixed(2)}`;
+                    }
+
+                    update(userRef, { balance: newBalance });
+                    document.getElementById("game-result").innerText = resultText;
+                }
+            });
+        };
+
+        window.openDeposit = function() {
+            const amount = document.getElementById("depositAmount").value;
+            const tid = document.getElementById("tidInput").value;
+            if(!amount || !tid) {
+                alert("Please enter amount and Transaction ID (TID)");
+                return;
+            }
+            const msg = `Hello Admin, I want to deposit PKR ${amount}. My TID is: ${tid} & Username is: ${currentUser}. Easypaisa Number: 0325-6590936`;
+            window.open(`https://wa.me/923256590936?text=${encodeURIComponent(msg)}`, '_blank');
+        };
+    </script>
 </head>
-<body>
+<body class="bg-slate-900 text-white font-sans min-p-4 flex flex-col items-center justify-center min-h-screen">
 
-<div class="container">
-    <h2>🔥 Lucky Win Arena</h2>
-    
-    <div class="card">
-        <h3>Wallet Balance: <span id="balance">0.00</span> PKR</h3>
+    <!-- Auth Screen -->
+    <div id="auth-screen" class="bg-slate-800 p-6 rounded-xl shadow-xl w-80 text-center">
+        <h1 class="text-2xl font-bold text-emerald-400 mb-4">Lucky Win Arena</h1>
+        <input type="text" id="usernameInput" placeholder="Enter your username" class="w-full p-2 rounded bg-slate-700 text-white mb-4 border border-slate-600 focus:outline-none">
+        <button onclick="loginUser()" class="w-full bg-emerald-500 hover:bg-emerald-600 font-bold p-2 rounded text-slate-900">Start Playing</button>
     </div>
 
-    <div class="card">
-        <h3>Greedy Multiplier</h3>
-        <p id="game-status">Click Spin to Play</p>
-        <button class="btn" onclick="playGame()">SPIN (Cost: 100 PKR)</button>
-    </div>
-
-    <div class="card" style="text-align: left;">
-        <h3 style="color: #38bdf8; text-align: center; margin-top: 0;">instant Easypaisa Deposit</h3>
-        <div class="deposit-info">
-            1. Send money to Easypaisa: <b>0325-6590936</b><br>
-            (Title: Abdul Raheem)<br>
-            2. Enter your Transaction ID (TID) below after sending.
+    <!-- Game Screen -->
+    <div id="game-screen" class="hidden w-full max-w-md bg-slate-800 p-6 rounded-xl shadow-xl">
+        <div class="flex justify-between items-center mb-6 border-b border-slate-700 pb-3">
+            <div>
+                <p class="text-xs text-slate-400">Player</p>
+                <h2 id="display-user" class="font-bold text-lg text-emerald-400"></h2>
+            </div>
+            <div class="text-right">
+                <p class="text-xs text-slate-400">Balance</p>
+                <h2 class="font-bold text-xl text-yellow-400">PKR <span id="user-balance">0.00</span></h2>
+            </div>
         </div>
-        
-        <label>Your Easypaisa Number:</label>
-        <input type="text" id="userNumber" placeholder="e.g. 03XXXXXXXXX">
 
-        <label>Transaction ID (TID):</label>
-        <input type="text" id="userTid" placeholder="Enter 11-digit TID">
+        <!-- Betting Controls -->
+        <div class="mb-6">
+            <label class="block text-sm text-slate-300 mb-1">Bet Amount (PKR)</label>
+            <input type="number" id="betAmount" value="50" class="w-full p-2 rounded bg-slate-700 text-white border border-slate-600 mb-4">
+            
+            <div class="grid grid-cols-2 gap-3">
+                <button onclick="placeBet(1.5)" class="bg-blue-600 hover:bg-blue-700 p-3 rounded font-bold text-center">Low Risk (1.5x)</button>
+                <button onclick="placeBet(2.0)" class="bg-purple-600 hover:bg-purple-700 p-3 rounded font-bold text-center">High Risk (2.0x)</button>
+            </div>
+            <p id="game-result" class="text-center mt-4 font-semibold text-lg text-yellow-300"></p>
+        </div>
 
-        <label>Amount (PKR):</label>
-        <input type="number" id="userAmount" placeholder="e.g. 500">
-
-        <button class="btn btn-submit" onclick="submitDeposit()">Submit Deposit Request</button>
+        <!-- Deposit Section -->
+        <div class="border-t border-slate-700 pt-4">
+            <h3 class="font-bold text-md text-emerald-400 mb-2">Deposit via Easypaisa (0325-6590936)</h3>
+            <input type="number" id="depositAmount" placeholder="Amount (PKR)" class="w-full p-2 rounded bg-slate-700 text-white mb-2 border border-slate-600">
+            <input type="text" id="tidInput" placeholder="Enter Transaction ID (TID)" class="w-full p-2 rounded bg-slate-700 text-white mb-3 border border-slate-600">
+            <button onclick="openDeposit()" class="w-full bg-emerald-600 hover:bg-emerald-700 p-2 rounded font-bold text-white">Send WhatsApp Deposit Request</button>
+        </div>
     </div>
-</div>
-
-<script>
-    let balance = 0.00;
-
-    function updateBalance() {
-        document.getElementById("balance").innerText = balance.toFixed(2);
-    }
-
-    function playGame() {
-        if (balance < 100) {
-            alert("Insufficient balance! Please deposit funds first.");
-            return;
-        }
-        balance -= 100;
-        let multipliers = [0, 0, 1.5, 2, 0, 5, 10, 0];
-        let rand = multipliers[Math.floor(Math.random() * multipliers.length)];
-        
-        if (rand > 0) {
-            let winAmount = 100 * rand;
-            balance += winAmount;
-            document.getElementById("game-status").innerText = `🎉 You Won ${winAmount} PKR (${rand}x)!`;
-        } else {
-            document.getElementById("game-status").innerText = "❌ Better luck next time!";
-        }
-        updateBalance();
-    }
-
-    function submitDeposit() {
-        let number = document.getElementById("userNumber").value;
-        let tid = document.getElementById("userTid").value;
-        let amount = document.getElementById("userAmount").value;
-
-        if (!number || !tid || !amount) {
-            alert("Please fill in all fields!");
-            return;
-        }
-
-        let adminWhatsapp = "923256590936";
-        let message = `*New Deposit Request*%0A- Sender Number: ${number}%0A- Amount: ${amount} PKR%0A- TID: ${tid}`;
-        
-        let whatsappUrl = `https://wa.me/${adminWhatsapp}?text=${message}`;
-        window.open(whatsappUrl, '_blank');
-    }
-</script>
 
 </body>
 </html>
